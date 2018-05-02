@@ -305,32 +305,6 @@ public class DefaultStepBasedSequenceHandler implements StepBasedSequenceHandler
 
                 }
 
-                // Do user provisioning if provisioning is enabled.
-                // We should provision the user with the original external subject identifier.
-                if (externalIdPConfig.isProvisioningEnabled()) {
-
-                    if (localClaimValues == null) {
-                        localClaimValues = new HashMap<>();
-                    }
-
-                    String idpRoleClaimUri = getIdpRoleClaimUri(externalIdPConfig);
-                    Map<String, String> originalExternalAttributeValueMap = FrameworkUtils.getClaimMappings(
-                            extAttrs, false);
-
-                    // Get the mapped user roles according to the mapping in the IDP configuration.
-                    // Exclude the unmapped from the returned list.
-                    List<String> identityProviderMappedUserRolesUnmappedExclusive = getIdentityProvideMappedUserRoles(
-                            externalIdPConfig, originalExternalAttributeValueMap, idpRoleClaimUri, true);
-
-                    localClaimValues.put(FrameworkConstants.ASSOCIATED_ID, originalExternalIdpSubjectValueForThisStep);
-                    localClaimValues.put(FrameworkConstants.IDP_ID, stepConfig.getAuthenticatedIdP());
-                    // Remove role claim from local claims as roles are specifically handled.
-                    localClaimValues.remove(getLocalClaimUriMappedForIdPRoleClaim(externalIdPConfig));
-
-                    handleJitProvisioning(originalExternalIdpSubjectValueForThisStep, context,
-                            identityProviderMappedUserRolesUnmappedExclusive, localClaimValues);
-                }
-
                 if (stepConfig.isSubjectIdentifierStep()) {
                     // there can be only step for subject attributes.
 
@@ -720,6 +694,11 @@ public class DefaultStepBasedSequenceHandler implements StepBasedSequenceHandler
         }
         // Claim handling failed. So we are returning an empty map.
         return Collections.emptyMap();
+    }
+
+    public void callJitProvisioning(String subjectIdentifier, AuthenticationContext context,
+            List<String> mappedRoles, Map<String, String> extAttributesValueMap) throws FrameworkException {
+        handleJitProvisioning(subjectIdentifier, context, mappedRoles, extAttributesValueMap);
     }
 
     /**

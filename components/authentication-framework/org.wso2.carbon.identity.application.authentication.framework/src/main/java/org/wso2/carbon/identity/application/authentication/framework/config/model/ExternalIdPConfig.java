@@ -205,6 +205,18 @@ public class ExternalIdPConfig implements Serializable {
     }
 
     /**
+     * To check whether password provisioning is enabled.
+     *
+     * @return true if the password provisioning is enabled otherwise false.
+     */
+    public boolean isPasswordProvisioningEnabled() {
+        if (justInTimeProConfig != null) {
+            return justInTimeProConfig.isPasswordProvisioningEnabled();
+        }
+        return false;
+    }
+
+    /**
      * @return
      */
     public String getRoleClaimUri() {

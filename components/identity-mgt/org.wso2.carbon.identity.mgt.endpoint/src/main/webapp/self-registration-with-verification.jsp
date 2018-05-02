@@ -72,7 +72,7 @@
                 application.getInitParameter(IdentityManagementEndpointConstants.ConfigConstants.USER_PORTAL_URL));
     }
     
-    if (userNameValidityStatusCode != null && !SelfRegistrationStatusCodes.CODE_USER_NAME_AVAILABLE.
+/*    if (userNameValidityStatusCode != null && !SelfRegistrationStatusCodes.CODE_USER_NAME_AVAILABLE.
             equalsIgnoreCase(userNameValidityStatusCode.toString())) {
         
         request.setAttribute("error", true);
@@ -80,7 +80,7 @@
         request.getRequestDispatcher("register.do").forward(request, response);
         return;
     }
-    
+    */
     String purposes = selfRegistrationMgtClient.getPurposes(user.getTenantDomain());
     boolean hasPurposes = StringUtils.isNotEmpty(purposes);
     
@@ -164,7 +164,7 @@
         <div class="row">
             <!-- content -->
             <div class="col-xs-12 col-sm-10 col-md-8 col-lg-5 col-centered wr-login">
-                <form action="processregistration.do" method="post" id="register">
+                <form action="../commonauth" method="post" id="register">
                     <h2 class="wr-title uppercase blue-bg padding-double white boarder-bottom-blue margin-none">Create
                         An Account</h2>
 
@@ -202,6 +202,10 @@
                                     <% if (isLastNameRequired) {%> required <%}%>>
                             </div>
                             <%}%>
+                            <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group">
+                                <input type="hidden" name="sessionDataKey" value='<%=Encode.forHtmlAttribute
+                                (request.getParameter("sessionDataKey"))%>'/>
+                            </div>
 
                             <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group required">
                                 <input id="username" name="username" type="hidden" value="<%=Encode.forHtmlAttribute(username)%>"
