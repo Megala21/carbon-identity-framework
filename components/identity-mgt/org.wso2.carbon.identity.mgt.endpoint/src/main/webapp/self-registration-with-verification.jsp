@@ -46,6 +46,7 @@
     Integer defaultPurposeCatId = null;
     Integer userNameValidityStatusCode = null;
     String username = request.getParameter("username");
+    boolean skipSignUpEnableCheck = Boolean.parseBoolean(request.getParameter("skipsignupenablecheck"));
     String callback = Encode.forHtmlAttribute(request.getParameter("callback"));
     User user = IdentityManagementServiceUtil.getInstance().getUser(username);
     
@@ -57,7 +58,7 @@
     }
     
     try {
-        userNameValidityStatusCode = selfRegistrationMgtClient.checkUsernameValidity(username);
+        userNameValidityStatusCode = selfRegistrationMgtClient.checkUsernameValidity(username, skipSignUpEnableCheck);
     } catch (SelfRegistrationMgtClientException e) {
         request.setAttribute("error", true);
         request.setAttribute("errorMsg", "Something went wrong while registering user : " + Encode.forHtmlContent(username) +

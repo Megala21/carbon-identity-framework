@@ -6,6 +6,8 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.utils.URIBuilder;
+import org.wso2.carbon.CarbonException;
+import org.wso2.carbon.core.util.AnonymousSessionUtil;
 import org.wso2.carbon.identity.application.authentication.framework.ApplicationAuthenticator;
 import org.wso2.carbon.identity.application.authentication.framework.FederatedApplicationAuthenticator;
 import org.wso2.carbon.identity.application.authentication.framework.config.ConfigurationFacade;
@@ -18,11 +20,19 @@ import org.wso2.carbon.identity.application.authentication.framework.exception.F
 import org.wso2.carbon.identity.application.authentication.framework.exception.PostAuthenticationFailedException;
 import org.wso2.carbon.identity.application.authentication.framework.handler.request.AbstractPostAuthnHandler;
 import org.wso2.carbon.identity.application.authentication.framework.handler.request.PostAuthnHandlerFlowStatus;
+import org.wso2.carbon.identity.application.authentication.framework.internal.FrameworkServiceComponent;
 import org.wso2.carbon.identity.application.authentication.framework.model.AuthenticatedUser;
 import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants;
 import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkUtils;
 import org.wso2.carbon.identity.application.common.model.ClaimMapping;
 import org.wso2.carbon.idp.mgt.IdentityProviderManagementException;
+import org.wso2.carbon.registry.core.service.RegistryService;
+import org.wso2.carbon.user.core.UserRealm;
+import org.wso2.carbon.user.core.UserStoreException;
+import org.wso2.carbon.user.core.UserStoreManager;
+import org.wso2.carbon.user.core.service.RealmService;
+import org.wso2.carbon.user.core.util.UserCoreUtil;
+import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -86,6 +96,7 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
                     log.error("Exception while getting IdP by name", e);
                 }
 
+                context.setExternalIdP(externalIdPConfig);
                 Map<String, String> localClaimValues;
                 localClaimValues = (Map<String, String>) context
                         .getProperty(FrameworkConstants.UNFILTERED_LOCAL_CLAIM_VALUES);
@@ -113,32 +124,107 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
                     localClaimValues.put(FrameworkConstants.IDP_ID, stepConfig.getAuthenticatedIdP());
                     // Remove role claim from local claims as roles are specifically handled.
                     localClaimValues.remove(getLocalClaimUriMappedForIdPRoleClaim(externalIdPConfig));
-                    URIBuilder uriBuilder = null;
+
+                    RegistryService registryService = FrameworkServiceComponent.getRegistryService();
+                    RealmService realmService = FrameworkServiceComponent.getRealmService();
+                    UserRealm realm = null;
                     try {
-                        uriBuilder = new URIBuilder("/accountrecoveryendpoint/signup.do");
-                        uriBuilder.addParameter("username", authenticatedUser.toFullQualifiedUsername());
-                        uriBuilder.addParameter(FrameworkConstants.SESSION_DATA_KEY,
-                                context.getContextIdentifier());
-                        response.sendRedirect(uriBuilder.build().toString());
-                    } catch (URISyntaxException e) {
-                        e.printStackTrace();
-                    } catch (IOException e) {
+                        realm = AnonymousSessionUtil.getRealmByTenantDomain(registryService,
+                                realmService, context.getTenantDomain());
+                    } catch (CarbonException e) {
                         e.printStackTrace();
                     }
 
-                   /*  try {
+                    String userStoreDomain = null;
+                    try {
+                        userStoreDomain = getUserStoreDomain(externalIdPConfig.getProvisioningUserStoreId(), realm);
+                    } catch (FrameworkException e) {
+                        e.printStackTrace();
+                    } catch (UserStoreException e) {
+                        e.printStackTrace();
+                    }
+
+                    String username = MultitenantUtils.getTenantAwareUsername(originalExternalIdpSubjectValueForThisStep);
+                    UserStoreManager userStoreManager = null;
+                    try {
+                        userStoreManager = getUserStoreManager(realm, userStoreDomain);
+                    } catch (UserStoreException e) {
+                        e.printStackTrace();
+                    } catch (FrameworkException e) {
+                        e.printStackTrace();
+                    }
+
+                    // Remove userStoreManager domain from username if the userStoreDomain is not primary
+                    try {
+                        if (realm.getUserStoreManager().getRealmConfiguration().isPrimary()) {
+                            username = UserCoreUtil.removeDomainFromName(username);
+                        }
+                    } catch (UserStoreException e) {
+                        e.printStackTrace();
+                    }
+
+                    try {
+                        if (!userStoreManager.isExistingUser(username)) {
+                            URIBuilder uriBuilder = null;
+                            try {
+                                uriBuilder = new URIBuilder("/accountrecoveryendpoint/signup.do");
+                                uriBuilder.addParameter("username", username);
+                                uriBuilder.addParameter("skipsignupenablecheck", String.valueOf(true));
+                                uriBuilder.addParameter(FrameworkConstants.SESSION_DATA_KEY, context.getContextIdentifier());
+                                response.sendRedirect(uriBuilder.build().toString());
+                            } catch (URISyntaxException e) {
+                                e.printStackTrace();
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                        return PostAuthnHandlerFlowStatus.INCOMPLETE;
+                    } catch (UserStoreException e) {
+                        e.printStackTrace();
+                    }
+                    try {
                         FrameworkUtils.getStepBasedSequenceHandler()
                                 .callJitProvisioning(originalExternalIdpSubjectValueForThisStep, context,
                                         identityProviderMappedUserRolesUnmappedExclusive, localClaimValues);
                     } catch (FrameworkException ex) {
                         throw new PostAuthenticationFailedException("Exception while doing JIT provisioning tasks",
                                 ex.getMessage(), ex);
-                    }*/
+                    }
                 }
 
             }
         }
-        return PostAuthnHandlerFlowStatus.INCOMPLETE;
+        return PostAuthnHandlerFlowStatus.SUCCESS_COMPLETED;
+
+    }
+
+    private UserStoreManager getUserStoreManager(UserRealm realm, String userStoreDomain)
+            throws UserStoreException, FrameworkException {
+        UserStoreManager userStoreManager;
+        if (userStoreDomain != null && !userStoreDomain.isEmpty()) {
+            userStoreManager = realm.getUserStoreManager().getSecondaryUserStoreManager(
+                    userStoreDomain);
+        } else {
+            userStoreManager = realm.getUserStoreManager();
+        }
+
+        if (userStoreManager == null) {
+            throw new FrameworkException("Specified user store is invalid");
+        }
+        return userStoreManager;
+    }
+
+    private String getUserStoreDomain(String userStoreDomain, UserRealm realm)
+            throws FrameworkException, UserStoreException {
+
+        // If the any of above value is invalid, keep it empty to use primary userstore
+        if (userStoreDomain != null
+                && realm.getUserStoreManager().getSecondaryUserStoreManager(userStoreDomain) == null) {
+            throw new FrameworkException("Specified user store domain " + userStoreDomain
+                    + " is not valid.");
+        }
+
+        return userStoreDomain;
     }
 
     /**
@@ -177,7 +263,6 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
      *
      * @param externalIdPConfig IdP configurations
      * @return local claim uri mapped for the IdP role claim uri.
-     * @throws FrameworkException
      */
     private String getLocalClaimUriMappedForIdPRoleClaim(ExternalIdPConfig externalIdPConfig) {
         // get external identity provider role claim uri.
