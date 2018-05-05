@@ -66,14 +66,12 @@
         request.getRequestDispatcher("register.do").forward(request, response);
         return;
     }
-    
-    
     if (StringUtils.isBlank(callback)) {
         callback = IdentityManagementEndpointUtil.getUserPortalUrl(
                 application.getInitParameter(IdentityManagementEndpointConstants.ConfigConstants.USER_PORTAL_URL));
     }
     
-/*    if (userNameValidityStatusCode != null && !SelfRegistrationStatusCodes.CODE_USER_NAME_AVAILABLE.
+    if (userNameValidityStatusCode != null && !SelfRegistrationStatusCodes.CODE_USER_NAME_AVAILABLE.
             equalsIgnoreCase(userNameValidityStatusCode.toString())) {
         
         request.setAttribute("error", true);
@@ -81,7 +79,6 @@
         request.getRequestDispatcher("register.do").forward(request, response);
         return;
     }
-    */
     String purposes = selfRegistrationMgtClient.getPurposes(user.getTenantDomain());
     boolean hasPurposes = StringUtils.isNotEmpty(purposes);
     
@@ -165,7 +162,12 @@
         <div class="row">
             <!-- content -->
             <div class="col-xs-12 col-sm-10 col-md-8 col-lg-5 col-centered wr-login">
-                <form action="../commonauth" method="post" id="register">
+
+                <% if(skipSignUpEnableCheck) { %>
+                    <form action="../commonauth" method="post" id="register">
+                 <% } else { %>
+                     <form action="processregistration.do" method="post" id="register">
+                 <% } %>
                     <h2 class="wr-title uppercase blue-bg padding-double white boarder-bottom-blue margin-none">Create
                         An Account</h2>
 
@@ -188,7 +190,9 @@
                             <div id="regFormError" class="alert alert-danger" style="display:none"></div>
                             <div id="regFormSuc" class="alert alert-success" style="display:none"></div>
 
+
                             <% if (isFirstNameInClaims) { %>
+
                             <div class="col-xs-12 col-sm-12 col-md-6 col-lg-6 form-group required">
                                 <label class="control-label">First Name</label>
                                 <input type="text" name="http://wso2.org/claims/givenname" class="form-control"
@@ -203,11 +207,12 @@
                                     <% if (isLastNameRequired) {%> required <%}%>>
                             </div>
                             <%}%>
+                            <% if (skipSignUpEnableCheck) { %>
                             <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group">
                                 <input type="hidden" name="sessionDataKey" value='<%=Encode.forHtmlAttribute
                                 (request.getParameter("sessionDataKey"))%>'/>
                             </div>
-
+                            <% } %>
                             <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group required">
                                 <input id="username" name="username" type="hidden" value="<%=Encode.forHtmlAttribute(username)%>"
                                        class="form-control required usrName usrNameLength">
@@ -225,12 +230,21 @@
                                        data-match="reg-password" required>
                             </div>
 
-                            <% if (isEmailInClaims) { %>
+                            <% if (isEmailInClaims) {
+                                String claimURI = "http://wso2.org/claims/emailaddress";
+                                String emailValue = request.getParameter(claimURI);
+
+
+                            %>
+
                             <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group required">
                                 <label class="control-label">Email</label>
                                 <input type="email" name="http://wso2.org/claims/emailaddress" class="form-control"
                                        data-validate="email"
-                                    <% if (isEmailRequired) {%> required <%}%>>
+                                    <% if (isEmailRequired) {%> required <%}%> <% if
+                                    (StringUtils.isNotEmpty(emailValue)) {%>
+                                       value="<%= Encode.forHtmlAttribute(emailValue)%>"
+                                        disabled<%}%>>
                             </div>
                             <%
                                 }
@@ -418,13 +432,14 @@
                 }
 
                 if (ALL_ATTRIBUTES_MANDATORY) {
+                    if (container) {
+                        var selectedAttributes = container.jstree(true).get_selected();
+                        var allSelected = compareArrays(allAttributes, selectedAttributes) ? true : false;
 
-                    var selectedAttributes = container.jstree(true).get_selected();
-                    var allSelected = compareArrays(allAttributes, selectedAttributes) ? true : false;
-
-                    if (!allSelected) {
-                        $("#attribute_selection_validation").modal();
-                        return false;
+                        if (!allSelected) {
+                            $("#attribute_selection_validation").modal();
+                            return false;
+                        }
                     }
 
                 }
@@ -436,7 +451,7 @@
                 var password = $("#password").val();
                 var password2 = $("#password2").val();
 
-                if (password != password2) {
+                if (password !== password2) {
                     error_msg.text("Passwords did not match. Please try again.");
                     error_msg.show();
                     $("html, body").animate({scrollTop: error_msg.offset().top}, 'slow');
@@ -513,7 +528,7 @@
 
             container = $("#html1").jstree({
                 plugins: ["table", "sort", "checkbox", "actions", "wholerow"],
-                checkbox: {"keep_selected_style": false},
+                checkbox: {"keep_selected_style": false}
             });
 
             container.on('ready.jstree', function (event, data) {

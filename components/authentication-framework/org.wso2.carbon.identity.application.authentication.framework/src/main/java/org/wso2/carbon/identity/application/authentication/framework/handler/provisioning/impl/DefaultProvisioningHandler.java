@@ -142,8 +142,12 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
                 }
 
             } else {
-
-                userStoreManager.addUser(username, generatePassword(), addingRoles.toArray(
+                String password = generatePassword();
+                if (userClaims.get("password") != null) {
+                    password = userClaims.get("password");
+                }
+                userClaims.remove("password");
+                userStoreManager.addUser(username, password, addingRoles.toArray(
                         new String[addingRoles.size()]), userClaims, null);
 
                 // Associate User

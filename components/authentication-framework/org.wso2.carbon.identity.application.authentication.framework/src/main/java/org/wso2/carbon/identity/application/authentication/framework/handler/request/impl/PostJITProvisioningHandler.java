@@ -23,10 +23,14 @@ import org.wso2.carbon.identity.application.authentication.framework.handler.req
 import org.wso2.carbon.identity.application.authentication.framework.internal.FrameworkServiceComponent;
 import org.wso2.carbon.identity.application.authentication.framework.model.AuthenticatedUser;
 import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants;
+import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkErrorConstants.ErrorMessages;
 import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkUtils;
 import org.wso2.carbon.identity.application.common.model.ClaimMapping;
+import org.wso2.carbon.identity.base.IdentityConstants;
 import org.wso2.carbon.idp.mgt.IdentityProviderManagementException;
 import org.wso2.carbon.registry.core.service.RegistryService;
+import org.wso2.carbon.user.api.Claim;
+import org.wso2.carbon.user.core.UserCoreConstants;
 import org.wso2.carbon.user.core.UserRealm;
 import org.wso2.carbon.user.core.UserStoreException;
 import org.wso2.carbon.user.core.UserStoreManager;
@@ -40,10 +44,11 @@ import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.*;
 
-import static org.wso2.carbon.identity.application.authentication.framework.handler.request.PostAuthnHandlerFlowStatus.SUCCESS_COMPLETED;
 import static org.wso2.carbon.identity.application.authentication.framework.handler.request.PostAuthnHandlerFlowStatus.UNSUCCESS_COMPLETED;
+import static org.wso2.carbon.identity.application.authentication.framework.util.FrameworkConstants.PASSWORD_PROVISION_REDIRECTION_TRIGGERED;
+import static org.wso2.carbon.identity.application.authentication.framework.util.FrameworkErrorConstants.ErrorMessages.*;
 
-public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
+public class PostJITProvisioningHandler extends AbstractPostAuthnHandler {
     private static final Log log = LogFactory.getLog(PostJITProvisioningHandler.class);
     private static volatile PostJITProvisioningHandler instance;
 
@@ -59,21 +64,17 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
         return instance;
     }
 
-    @Override
-    public int getPriority() {
+    @Override public int getPriority() {
 
         return 20;
     }
 
-    @Override
-    public String getName() {
+    @Override public String getName() {
 
         return "JITProvisionHandler";
     }
 
-
-    @Override
-    public PostAuthnHandlerFlowStatus handle(HttpServletRequest request, HttpServletResponse response,
+    @Override public PostAuthnHandlerFlowStatus handle(HttpServletRequest request, HttpServletResponse response,
             AuthenticationContext context) throws PostAuthenticationFailedException {
         SequenceConfig sequenceConfig = context.getSequenceConfig();
 
@@ -81,6 +82,22 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
         if (authenticatedUser == null) {
             return UNSUCCESS_COMPLETED;
         }
+
+        Object object = context.getProperty(PASSWORD_PROVISION_REDIRECTION_TRIGGERED);
+        boolean passWordProvisioningRedirectionTriggered = false;
+        if (object instanceof Boolean) {
+            passWordProvisioningRedirectionTriggered = (boolean) object;
+        }
+
+        if (passWordProvisioningRedirectionTriggered) {
+            return handleResponseFlow(request, context, sequenceConfig);
+        } else {
+            return handleRequestFlow(response, context, sequenceConfig);
+        }
+    }
+
+    private PostAuthnHandlerFlowStatus handleResponseFlow(HttpServletRequest request, AuthenticationContext context,
+            SequenceConfig sequenceConfig) throws PostAuthenticationFailedException {
         for (Map.Entry<Integer, StepConfig> entry : sequenceConfig.getStepMap().entrySet()) {
             StepConfig stepConfig = entry.getValue();
             AuthenticatorConfig authenticatorConfig = stepConfig.getAuthenticatedAutenticator();
@@ -89,11 +106,138 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
             if (authenticator instanceof FederatedApplicationAuthenticator) {
 
                 ExternalIdPConfig externalIdPConfig = null;
+                String externalIdPConfigName = stepConfig.getAuthenticatedIdP();
                 try {
                     externalIdPConfig = ConfigurationFacade.getInstance()
-                            .getIdPConfigByName(stepConfig.getAuthenticatedIdP(), context.getTenantDomain());
+                            .getIdPConfigByName(externalIdPConfigName, context.getTenantDomain());
                 } catch (IdentityProviderManagementException e) {
-                    log.error("Exception while getting IdP by name", e);
+                    handleExceptions(String.format(ERROR_WHILE_GETTING_IDP_BY_NAME.getMessage(), externalIdPConfigName,
+                            context.getTenantDomain()), ERROR_WHILE_GETTING_IDP_BY_NAME.getCode(), e);
+                }
+
+                context.setExternalIdP(externalIdPConfig);
+                final Map<String, String> localClaimValues;
+                Object unfilteredLocalClaimValues = context
+                        .getProperty(FrameworkConstants.UNFILTERED_LOCAL_CLAIM_VALUES);
+                localClaimValues = unfilteredLocalClaimValues == null ?
+                        new HashMap<>() :
+                        (Map<String, String>) unfilteredLocalClaimValues;
+                Map<ClaimMapping, String> extAttrs = stepConfig.getAuthenticatedUser().getUserAttributes();
+                // Get the mapped user roles according to the mapping in the IDP configuration.
+                // Exclude the unmapped from the retursned list.
+
+                if (externalIdPConfig != null && externalIdPConfig.isProvisioningEnabled() && externalIdPConfig
+                        .isPasswordProvisioningEnabled()) {
+
+                    String originalExternalIdpSubjectValueForThisStep = stepConfig.getAuthenticatedUser()
+                            .getAuthenticatedSubjectIdentifier();
+
+                    String idpRoleClaimUri = getIdpRoleClaimUri(externalIdPConfig);
+                    Map<String, String> originalExternalAttributeValueMap = FrameworkUtils
+                            .getClaimMappings(extAttrs, false);
+
+                    List<String> identityProviderMappedUserRolesUnmappedExclusive = getIdentityProvideMappedUserRoles(
+                            externalIdPConfig, originalExternalAttributeValueMap, idpRoleClaimUri, true);
+
+                    RegistryService registryService = FrameworkServiceComponent.getRegistryService();
+                    RealmService realmService = FrameworkServiceComponent.getRealmService();
+                    UserRealm realm = null;
+                    try {
+                        realm = AnonymousSessionUtil
+                                .getRealmByTenantDomain(registryService, realmService, context.getTenantDomain());
+                    } catch (CarbonException e) {
+                        handleExceptions(String.format(ERROR_WHILE_GETTING_REALM_IN_POST_AUTHENTICATION.getMessage(),
+                                context.getTenantDomain()), ERROR_WHILE_GETTING_REALM_IN_POST_AUTHENTICATION.getCode(),
+                                e);
+                    }
+
+                    Claim[] claims = null;
+                    try {
+                        claims = getClaimsToEnterData(realm);
+
+                    } catch (UserStoreException e) {
+                        e.printStackTrace();
+                    }
+
+                    for (Claim claim : claims) {
+                        String uri = claim.getClaimUri();
+                        String claimValue = request.getParameter(uri);
+                        if (StringUtils.isNotBlank(claimValue) && StringUtils.isEmpty(localClaimValues.get
+                                (uri))) {
+                            localClaimValues.put(uri, claimValue);
+                        }
+                    }
+
+                    localClaimValues.put("password", request.getParameter("password"));
+
+                    try {
+                        FrameworkUtils.getStepBasedSequenceHandler()
+                                .callJitProvisioning(originalExternalIdpSubjectValueForThisStep, context,
+                                        identityProviderMappedUserRolesUnmappedExclusive, localClaimValues);
+                    } catch (FrameworkException e) {
+                        throw new PostAuthenticationFailedException("test", "test", e);
+                    }
+                }
+
+            }
+        }
+        return PostAuthnHandlerFlowStatus.SUCCESS_COMPLETED;
+    }
+
+    private Claim[] getClaimsToEnterData(UserRealm realm)
+            throws UserStoreException {
+        try {
+            return getAllSupportedClaims(realm, UserCoreConstants.DEFAULT_CARBON_DIALECT);
+        } catch (org.wso2.carbon.user.api.UserStoreException e) {
+            throw new UserStoreException(e);
+        }
+    }
+
+    private Claim[] getAllSupportedClaims(UserRealm realm, String dialectUri)
+            throws org.wso2.carbon.user.api.UserStoreException {
+        org.wso2.carbon.user.api.ClaimMapping[] claims = null;
+        List<Claim> reqClaims = null;
+
+        claims = realm.getClaimManager().getAllSupportClaimMappingsByDefault();
+        reqClaims = new ArrayList<Claim>();
+        for (int i = 0; i < claims.length; i++) {
+            if (dialectUri.equals(claims[i].getClaim().getDialectURI()) && (claims[i] != null && claims[i].getClaim().getDisplayTag() != null
+                    && !claims[i].getClaim().getClaimUri().equals(IdentityConstants.CLAIM_PPID))) {
+
+                reqClaims.add((Claim) claims[i].getClaim());
+            }
+        }
+
+        return reqClaims.toArray(new Claim[reqClaims.size()]);
+    }
+
+    /**
+     * To handle the request flow of the post authentication handler.
+     *
+     * @param response       HttpServlet response.
+     * @param context        Authentication context
+     * @param sequenceConfig Sequence Config
+     * @return Post Authn Handler status of this post authentication handler.
+     * @throws PostAuthenticationFailedException Exception that will be thrown in case of failure.
+     */
+    private PostAuthnHandlerFlowStatus handleRequestFlow(HttpServletResponse response, AuthenticationContext context,
+            SequenceConfig sequenceConfig) throws PostAuthenticationFailedException {
+
+        for (Map.Entry<Integer, StepConfig> entry : sequenceConfig.getStepMap().entrySet()) {
+            StepConfig stepConfig = entry.getValue();
+            AuthenticatorConfig authenticatorConfig = stepConfig.getAuthenticatedAutenticator();
+            ApplicationAuthenticator authenticator = authenticatorConfig.getApplicationAuthenticator();
+
+            if (authenticator instanceof FederatedApplicationAuthenticator) {
+
+                ExternalIdPConfig externalIdPConfig = null;
+                String externalIdPConfigName = stepConfig.getAuthenticatedIdP();
+                try {
+                    externalIdPConfig = ConfigurationFacade.getInstance()
+                            .getIdPConfigByName(externalIdPConfigName, context.getTenantDomain());
+                } catch (IdentityProviderManagementException e) {
+                    handleExceptions(String.format(ERROR_WHILE_GETTING_IDP_BY_NAME.getMessage(), externalIdPConfigName,
+                            context.getTenantDomain()), ERROR_WHILE_GETTING_IDP_BY_NAME.getCode(), e);
                 }
 
                 context.setExternalIdP(externalIdPConfig);
@@ -101,8 +245,7 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
                 localClaimValues = (Map<String, String>) context
                         .getProperty(FrameworkConstants.UNFILTERED_LOCAL_CLAIM_VALUES);
                 Map<ClaimMapping, String> extAttrs = stepConfig.getAuthenticatedUser().getUserAttributes();
-                if (externalIdPConfig != null && externalIdPConfig.isProvisioningEnabled() && externalIdPConfig
-                        .isPasswordProvisioningEnabled()) {
+                if (externalIdPConfig != null && externalIdPConfig.isProvisioningEnabled()) {
 
                     if (localClaimValues == null) {
                         localClaimValues = new HashMap<>();
@@ -129,29 +272,34 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
                     RealmService realmService = FrameworkServiceComponent.getRealmService();
                     UserRealm realm = null;
                     try {
-                        realm = AnonymousSessionUtil.getRealmByTenantDomain(registryService,
-                                realmService, context.getTenantDomain());
+                        realm = AnonymousSessionUtil
+                                .getRealmByTenantDomain(registryService, realmService, context.getTenantDomain());
                     } catch (CarbonException e) {
-                        e.printStackTrace();
+                        handleExceptions(String.format(ERROR_WHILE_GETTING_REALM_IN_POST_AUTHENTICATION.getMessage(),
+                                context.getTenantDomain()), ERROR_WHILE_GETTING_REALM_IN_POST_AUTHENTICATION.getCode(),
+                                e);
                     }
 
                     String userStoreDomain = null;
                     try {
                         userStoreDomain = getUserStoreDomain(externalIdPConfig.getProvisioningUserStoreId(), realm);
-                    } catch (FrameworkException e) {
-                        e.printStackTrace();
-                    } catch (UserStoreException e) {
-                        e.printStackTrace();
+                    } catch (FrameworkException | UserStoreException e) {
+                        handleExceptions(
+                                String.format(ERROR_WHILE_GETTING_USER_STORE_DOMAIN_WHILE_PROVISIONING.getMessage(),
+                                        context.getTenantDomain(), externalIdPConfigName),
+                                ERROR_WHILE_GETTING_USER_STORE_DOMAIN_WHILE_PROVISIONING.getCode(), e);
                     }
 
-                    String username = MultitenantUtils.getTenantAwareUsername(originalExternalIdpSubjectValueForThisStep);
+                    String username = MultitenantUtils
+                            .getTenantAwareUsername(originalExternalIdpSubjectValueForThisStep);
                     UserStoreManager userStoreManager = null;
                     try {
                         userStoreManager = getUserStoreManager(realm, userStoreDomain);
-                    } catch (UserStoreException e) {
-                        e.printStackTrace();
-                    } catch (FrameworkException e) {
-                        e.printStackTrace();
+                    } catch (UserStoreException | FrameworkException e) {
+                        handleExceptions(
+                                String.format(ERROR_WHILE_GETTING_USER_STORE_MANAGER_WHILE_PROVISIONING.getMessage(),
+                                        username, externalIdPConfigName),
+                                ERROR_WHILE_GETTING_USER_STORE_MANAGER_WHILE_PROVISIONING.getCode(), e);
                     }
 
                     // Remove userStoreManager domain from username if the userStoreDomain is not primary
@@ -160,50 +308,70 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
                             username = UserCoreUtil.removeDomainFromName(username);
                         }
                     } catch (UserStoreException e) {
-                        e.printStackTrace();
+                        handleExceptions(
+                                String.format(ERROR_WHILE_REMOVING_DOMAIN_FROM_USERNAME_WHILE_PROVISIONING.getMessage(),
+                                        username, externalIdPConfigName),
+                                ERROR_WHILE_REMOVING_DOMAIN_FROM_USERNAME_WHILE_PROVISIONING.getCode(), e);
                     }
 
                     try {
-                        if (!userStoreManager.isExistingUser(username)) {
-                            URIBuilder uriBuilder = null;
+                        if (externalIdPConfig.isPasswordProvisioningEnabled() && !userStoreManager
+                                .isExistingUser(username)) {
                             try {
-                                uriBuilder = new URIBuilder("/accountrecoveryendpoint/signup.do");
-                                uriBuilder.addParameter("username", username);
-                                uriBuilder.addParameter("skipsignupenablecheck", String.valueOf(true));
-                                uriBuilder.addParameter(FrameworkConstants.SESSION_DATA_KEY, context.getContextIdentifier());
+                                final URIBuilder uriBuilder = new URIBuilder("/accountrecoveryendpoint/signup.do");
+                                uriBuilder.addParameter(FrameworkConstants.USERNAME, username);
+                                uriBuilder.addParameter(FrameworkConstants.SKIP_SIGN_UP_ENABLE_CHECK,
+                                        String.valueOf(true));
+                                uriBuilder.addParameter(FrameworkConstants.SESSION_DATA_KEY,
+                                        context.getContextIdentifier());
+
+                                localClaimValues.forEach(uriBuilder::addParameter);
                                 response.sendRedirect(uriBuilder.build().toString());
-                            } catch (URISyntaxException e) {
-                                e.printStackTrace();
-                            } catch (IOException e) {
-                                e.printStackTrace();
+                            } catch (URISyntaxException | IOException e) {
+                                handleExceptions(String.format(
+                                        ErrorMessages.ERROR_WHILE_TRYING_CALL_SIGN_UP_ENDPOINT_FOR_PASSWORD_PROVISIONING
+                                                .getMessage(), username, externalIdPConfigName),
+                                        ErrorMessages.ERROR_WHILE_TRYING_CALL_SIGN_UP_ENDPOINT_FOR_PASSWORD_PROVISIONING
+                                                .getCode(), e);
                             }
+                            context.setProperty(PASSWORD_PROVISION_REDIRECTION_TRIGGERED, true);
+                            return PostAuthnHandlerFlowStatus.INCOMPLETE;
                         }
-                        return PostAuthnHandlerFlowStatus.INCOMPLETE;
                     } catch (UserStoreException e) {
-                        e.printStackTrace();
+                        handleExceptions(String.format(
+                                ErrorMessages.ERROR_WHILE_TRYING_CALL_SIGN_UP_ENDPOINT_FOR_PASSWORD_PROVISIONING
+                                        .getMessage(), username, externalIdPConfigName),
+                                ErrorMessages.ERROR_WHILE_TRYING_CALL_SIGN_UP_ENDPOINT_FOR_PASSWORD_PROVISIONING
+                                        .getCode(), e);
                     }
                     try {
                         FrameworkUtils.getStepBasedSequenceHandler()
                                 .callJitProvisioning(originalExternalIdpSubjectValueForThisStep, context,
                                         identityProviderMappedUserRolesUnmappedExclusive, localClaimValues);
-                    } catch (FrameworkException ex) {
-                        throw new PostAuthenticationFailedException("Exception while doing JIT provisioning tasks",
-                                ex.getMessage(), ex);
+                    } catch (FrameworkException e) {
+                        handleExceptions(String.format(
+                                ERROR_WHILE_TRYING_TO_PROVISION_USER_WITHOUT_PASSWORD_PROVISIONING.getMessage(),
+                                username, externalIdPConfigName),
+                                ERROR_WHILE_TRYING_TO_PROVISION_USER_WITHOUT_PASSWORD_PROVISIONING.getCode(), e);
                     }
                 }
 
             }
         }
         return PostAuthnHandlerFlowStatus.SUCCESS_COMPLETED;
+    }
 
+    private void handleExceptions(String errorMessage, String errorCode, Exception e)
+            throws PostAuthenticationFailedException {
+        log.error(errorCode + " - " + errorMessage, e);
+        throw new PostAuthenticationFailedException(errorCode, errorMessage, e);
     }
 
     private UserStoreManager getUserStoreManager(UserRealm realm, String userStoreDomain)
             throws UserStoreException, FrameworkException {
         UserStoreManager userStoreManager;
         if (userStoreDomain != null && !userStoreDomain.isEmpty()) {
-            userStoreManager = realm.getUserStoreManager().getSecondaryUserStoreManager(
-                    userStoreDomain);
+            userStoreManager = realm.getUserStoreManager().getSecondaryUserStoreManager(userStoreDomain);
         } else {
             userStoreManager = realm.getUserStoreManager();
         }
@@ -220,8 +388,7 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
         // If the any of above value is invalid, keep it empty to use primary userstore
         if (userStoreDomain != null
                 && realm.getUserStoreManager().getSecondaryUserStoreManager(userStoreDomain) == null) {
-            throw new FrameworkException("Specified user store domain " + userStoreDomain
-                    + " is not valid.");
+            throw new FrameworkException("Specified user store domain " + userStoreDomain + " is not valid.");
         }
 
         return userStoreDomain;
@@ -284,7 +451,6 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
         return FrameworkConstants.LOCAL_ROLE_CLAIM_URI;
     }
 
-
     /**
      * Map the external IDP roles to local roles.
      * If excludeUnmapped is true exclude unmapped roles.
@@ -319,8 +485,9 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
         } else {
             // No identity provider role values found.
             if (log.isDebugEnabled()) {
-                log.debug("No role attribute value has received from the external IDP: "
-                        + externalIdPConfig.getIdPName() + ", in Domain: " + externalIdPConfig.getDomain() + ".");
+                log.debug(
+                        "No role attribute value has received from the external IDP: " + externalIdPConfig.getIdPName()
+                                + ", in Domain: " + externalIdPConfig.getDomain() + ".");
             }
             return new ArrayList<>();
         }
@@ -331,8 +498,8 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
         // If no role mapping is configured in the identity provider.
         if (MapUtils.isEmpty(idpToLocalRoleMapping)) {
             if (log.isDebugEnabled()) {
-                log.debug("No role mapping is configured in the external IDP: "
-                        + externalIdPConfig.getIdPName() + ", in Domain: " + externalIdPConfig.getDomain() + ".");
+                log.debug("No role mapping is configured in the external IDP: " + externalIdPConfig.getIdPName()
+                        + ", in Domain: " + externalIdPConfig.getDomain() + ".");
             }
 
             if (excludeUnmapped) {
@@ -343,7 +510,7 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler  {
             return idpMappedUserRoles;
         }
 
-        for (String idpRole : idpRoles){
+        for (String idpRole : idpRoles) {
             if (idpToLocalRoleMapping.containsKey(idpRole)) {
                 idpMappedUserRoles.add(idpToLocalRoleMapping.get(idpRole));
             } else if (!excludeUnmapped) {

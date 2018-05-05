@@ -51,6 +51,10 @@ public abstract class FrameworkConstants {
     public static final String OPENID_SERVER = "openidserver";
     public static final String OAUTH2 = "oauth2";
     public static final String USERNAME = "username";
+
+    // This is to support sign-up form to be displayed in the provisioning flow, as when trying to displaying the
+    // sign-up form, we validate whether self-sign up is enabled.
+    public static final String SKIP_SIGN_UP_ENABLE_CHECK = "skipsignupenablecheck";
     public static final String OPENID_IDENTITY = "openid.identity";
     public static final String OIDC = "oidc";
     public static final String AUTH_ENDPOINT_QUERY_PARAMS_ACTION_INCLUDE = "include";
@@ -68,6 +72,10 @@ public abstract class FrameworkConstants {
 
     public static final String POST_AUTHENTICATION_EXTENSION_COMPLETED = "postAuthenticationExtensionCompleted";
     public static final String POST_AUTHENTICATION_REDIRECTION_TRIGGERED = "postAuthenticationRedirectionTriggered";
+
+    // This property is to keep track whether the post authentication handler for jit provisioning is executing
+    // request flow or response flow.
+    public static final String PASSWORD_PROVISION_REDIRECTION_TRIGGERED = "passwordProvisioningRedirectionTriggered";
     public static final String MISSING_CLAIMS = "missingClaims";
     public static final String REQUEST_PARAM_SP = "sp";
     public static final String MAPPED_ATTRIBUTES = "MappedAttributes";
