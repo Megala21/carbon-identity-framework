@@ -580,27 +580,7 @@ public class DefaultStepBasedSequenceHandler implements StepBasedSequenceHandler
      * @return
      */
     protected String getIdpRoleClaimUri(ExternalIdPConfig externalIdPConfig) throws FrameworkException {
-        // get external identity provider role claim uri.
-        String idpRoleClaimUri = externalIdPConfig.getRoleClaimUri();
-
-        if (idpRoleClaimUri == null || idpRoleClaimUri.isEmpty()) {
-            // no role claim uri defined
-            // we can still try to find it out - lets have a look at the claim
-            // mapping.
-            ClaimMapping[] idpToLocalClaimMapping = externalIdPConfig.getClaimMappings();
-
-            if (idpToLocalClaimMapping != null && idpToLocalClaimMapping.length > 0) {
-
-                for (ClaimMapping mapping : idpToLocalClaimMapping) {
-                    if (FrameworkConstants.LOCAL_ROLE_CLAIM_URI.equals(
-                            mapping.getLocalClaim().getClaimUri()) && mapping.getRemoteClaim() != null) {
-                        return mapping.getRemoteClaim().getClaimUri();
-                    }
-                }
-            }
-        }
-
-        return idpRoleClaimUri;
+        return FrameworkUtils.getIdpRoleClaimUri(externalIdPConfig);
     }
 
     /**
@@ -618,59 +598,8 @@ public class DefaultStepBasedSequenceHandler implements StepBasedSequenceHandler
                                                              Map<String, String> extAttributesValueMap,
                                                              String idpRoleClaimUri,
                                                              Boolean excludeUnmapped) throws FrameworkException {
-
-        if (idpRoleClaimUri == null) {
-            // Since idpRoleCalimUri is not defined cannot do role mapping.
-            if (log.isDebugEnabled()) {
-                log.debug("Role claim uri is not configured for the external IDP: " + externalIdPConfig.getIdPName()
-                        + ", in Domain: " + externalIdPConfig.getDomain() + ".");
-            }
-            return new ArrayList<>();
-        }
-
-        String idpRoleAttrValue = null;
-        if (extAttributesValueMap != null) {
-            idpRoleAttrValue = extAttributesValueMap.get(idpRoleClaimUri);
-        }
-
-        String[] idpRoles;
-        if (idpRoleAttrValue != null) {
-            idpRoles = idpRoleAttrValue.split(FrameworkUtils.getMultiAttributeSeparator());
-        } else {
-            // No identity provider role values found.
-            if (log.isDebugEnabled()) {
-                log.debug("No role attribute value has received from the external IDP: "
-                        + externalIdPConfig.getIdPName() + ", in Domain: " + externalIdPConfig.getDomain() + ".");
-            }
-            return new ArrayList<>();
-        }
-
-        Map<String, String> idpToLocalRoleMapping = externalIdPConfig.getRoleMappings();
-
-        List<String> idpMappedUserRoles = new ArrayList<>();
-        // If no role mapping is configured in the identity provider.
-        if (MapUtils.isEmpty(idpToLocalRoleMapping)) {
-            if (log.isDebugEnabled()) {
-                log.debug("No role mapping is configured in the external IDP: "
-                        + externalIdPConfig.getIdPName() + ", in Domain: " + externalIdPConfig.getDomain() + ".");
-            }
-
-            if (excludeUnmapped) {
-                return new ArrayList<>();
-            }
-
-            idpMappedUserRoles.addAll(Arrays.asList(idpRoles));
-            return idpMappedUserRoles;
-        }
-
-        for (String idpRole : idpRoles){
-            if (idpToLocalRoleMapping.containsKey(idpRole)) {
-                idpMappedUserRoles.add(idpToLocalRoleMapping.get(idpRole));
-            } else if (!excludeUnmapped) {
-                idpMappedUserRoles.add(idpRole);
-            }
-        }
-        return idpMappedUserRoles;
+        return FrameworkUtils.getIdentityProvideMappedUserRoles(externalIdPConfig, extAttributesValueMap,
+                idpRoleClaimUri, excludeUnmapped);
     }
 
     /**
@@ -765,23 +694,7 @@ public class DefaultStepBasedSequenceHandler implements StepBasedSequenceHandler
      */
     protected String getLocalClaimUriMappedForIdPRoleClaim(ExternalIdPConfig externalIdPConfig) throws
             FrameworkException {
-        // get external identity provider role claim uri.
-        String idpRoleClaimUri = externalIdPConfig.getRoleClaimUri();
-        if (StringUtils.isNotBlank(idpRoleClaimUri)) {
-            // Iterate over IdP claim mappings and check for the local claim that is mapped for the remote IdP role
-            // claim uri configured.
-            ClaimMapping[] idpToLocalClaimMapping = externalIdPConfig.getClaimMappings();
-            if (!ArrayUtils.isEmpty(idpToLocalClaimMapping)) {
-                for (ClaimMapping mapping : idpToLocalClaimMapping) {
-                    if (mapping.getRemoteClaim() != null && idpRoleClaimUri.equals(mapping.getRemoteClaim()
-                            .getClaimUri())) {
-                        return mapping.getLocalClaim().getClaimUri();
-                    }
-                }
-            }
-        }
-
-        return FrameworkConstants.LOCAL_ROLE_CLAIM_URI;
+        return FrameworkUtils.getLocalClaimUriMappedForIdPRoleClaim(externalIdPConfig);
     }
 
 }

@@ -190,21 +190,32 @@
                             <div id="regFormError" class="alert alert-danger" style="display:none"></div>
                             <div id="regFormSuc" class="alert alert-success" style="display:none"></div>
 
+                            <% if (isFirstNameInClaims) {
+                                String firstNameClaimURI = "http://wso2.org/claims/givenname";
+                                String firstNameValue = request.getParameter(firstNameClaimURI);
 
-                            <% if (isFirstNameInClaims) { %>
-
+                            %>
                             <div class="col-xs-12 col-sm-12 col-md-6 col-lg-6 form-group required">
                                 <label class="control-label">First Name</label>
-                                <input type="text" name="http://wso2.org/claims/givenname" class="form-control"
-                                    <% if (isFirstNameRequired) {%> required <%}%>>
+                                <input type="text" name="<%=
+                                Encode.forHtmlAttribute(firstNameClaimURI)%>" class="form-control"
+                                    <% if (isFirstNameRequired) {%> required <%}%>
+                                    <% if (skipSignUpEnableCheck && StringUtils.isNotEmpty(firstNameValue)) { %>
+                                    value="<%= Encode.forHtmlAttribute(firstNameValue)%>" disabled <% } %>>
                             </div>
                             <%}%>
 
-                            <% if (isLastNameInClaims) { %>
+                            <% if (isLastNameInClaims) {
+                                String lastNameClaimURI = "http://wso2.org/claims/lastname";
+                                String lastNameValue = request.getParameter(lastNameClaimURI);
+                            %>
                             <div class="col-xs-12 col-sm-12 col-md-6 col-lg-6 form-group required">
                                 <label class="control-label">Last Name</label>
-                                <input type="text" name="http://wso2.org/claims/lastname" class="form-control"
-                                    <% if (isLastNameRequired) {%> required <%}%>>
+                                <input type="text" name="<%=
+                                Encode.forHtmlAttribute(lastNameClaimURI)%>" class="form-control"
+                                    <% if (isLastNameRequired) {%> required <%}%>
+                                    <% if (skipSignUpEnableCheck && StringUtils.isNotEmpty(lastNameValue)) { %>
+                                    value="<%= Encode.forHtmlAttribute(lastNameValue)%>" disabled <% } %>>
                             </div>
                             <%}%>
                             <% if (skipSignUpEnableCheck) { %>
@@ -233,16 +244,13 @@
                             <% if (isEmailInClaims) {
                                 String claimURI = "http://wso2.org/claims/emailaddress";
                                 String emailValue = request.getParameter(claimURI);
-
-
                             %>
-
                             <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group required">
                                 <label class="control-label">Email</label>
-                                <input type="email" name="http://wso2.org/claims/emailaddress" class="form-control"
+                                <input type="email" name="<%= Encode.forHtmlAttribute(claimURI)%>" class="form-control"
                                        data-validate="email"
                                     <% if (isEmailRequired) {%> required <%}%> <% if
-                                    (StringUtils.isNotEmpty(emailValue)) {%>
+                                    (skipSignUpEnableCheck && StringUtils.isNotEmpty(emailValue)) {%>
                                        value="<%= Encode.forHtmlAttribute(emailValue)%>"
                                         disabled<%}%>>
                             </div>
@@ -265,19 +273,23 @@
                                     !StringUtils.equals(claim.getUri(), IdentityManagementEndpointConstants.ClaimURIs.CHALLENGE_QUESTION_URI_CLAIM) &&
                                     !StringUtils.equals(claim.getUri(), IdentityManagementEndpointConstants.ClaimURIs.CHALLENGE_QUESTION_1_CLAIM) &&
                                     !StringUtils.equals(claim.getUri(), IdentityManagementEndpointConstants.ClaimURIs.CHALLENGE_QUESTION_2_CLAIM)) {
+                                    String claimURI = claim.getUri();
+                                    String claimValue = request.getParameter(claimURI);
                             %>
                             <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group">
                                 <label <% if (claim.getRequired()) {%> class="control-label" <%}%>>
                                     <%= Encode.forHtmlContent(claim.getDisplayName()) %>
                                 </label>
-                                <input type="text" name="<%= Encode.forHtmlAttribute(claim.getUri()) %>"
+                                <input type="text" name="<%= Encode.forHtmlAttribute(claimURI) %>"
                                        class="form-control"
                                         <% if (claim.getValidationRegex() != null) { %>
                                                 pattern="<%= Encode.forHtmlContent(claim.getValidationRegex()) %>"
                                         <% } %>
                                         <% if (claim.getRequired()) { %>
                                             required
-                                        <% } %>>
+                                        <% } %>
+                                    <% if(skipSignUpEnableCheck && StringUtils.isNotEmpty(claimValue)) {%>
+                                       value="<%= Encode.forHtmlAttribute(claimValue)%>" disabled<%}%>>
                             </div>
                             <%
                                     }
@@ -356,12 +368,14 @@
                                        value="true"/>
                                 <input id="tenantDomain" name="tenantDomain" type="hidden" value="<%=user.getTenantDomain()%>"/>
                             </div>
-                            <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group">
-                                <span class="margin-top padding-top-double font-large">Already have an account? </span>
-                                <a href="<%=Encode.forHtmlAttribute(IdentityManagementEndpointUtil.getUserPortalUrl(
-                                    application.getInitParameter(IdentityManagementEndpointConstants.ConfigConstants.USER_PORTAL_URL)))%>"
-                                   id="signInLink" class="font-large">Sign in</a>
-                            </div>
+                            <% if (!skipSignUpEnableCheck) { %>
+                                <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group">
+                                    <span class="margin-top padding-top-double font-large">Already have an account? </span>
+                                    <a href="<%=Encode.forHtmlAttribute(IdentityManagementEndpointUtil.getUserPortalUrl(
+                                        application.getInitParameter(IdentityManagementEndpointConstants.ConfigConstants.USER_PORTAL_URL)))%>"
+                                       id="signInLink" class="font-large">Sign in</a>
+                                </div>
+                            <% } %>
                             <div class="clearfix"></div>
                         </div>
                         <div class="clearfix"></div>

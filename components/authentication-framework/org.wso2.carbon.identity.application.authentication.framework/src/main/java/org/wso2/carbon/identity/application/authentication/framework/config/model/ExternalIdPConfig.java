@@ -217,6 +217,18 @@ public class ExternalIdPConfig implements Serializable {
     }
 
     /**
+     * To check whether modify user name is allowed.
+     *
+     * @return true if modification of user name is allowed.
+     */
+    public boolean isModifyUserNameAllowed() {
+        if (justInTimeProConfig != null) {
+            return justInTimeProConfig.isModifyUserNameAllowed();
+        }
+        return false;
+    }
+
+    /**
      * @return
      */
     public String getRoleClaimUri() {

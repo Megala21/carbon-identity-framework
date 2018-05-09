@@ -77,6 +77,7 @@
     boolean isProvisioningEnabled = false;
     boolean isCustomClaimEnabled = false;
     boolean isPasswordProvisioningEnabled = false;
+    boolean isUserNameModificationAllowed = false;
 
     String provisioningUserStoreId = null;
     boolean isOpenIdEnabled = false;
@@ -618,6 +619,7 @@
         provisioningUserStoreId = identityProvider.getJustInTimeProvisioningConfig().getProvisioningUserStore();
         isPasswordProvisioningEnabled =
                 identityProvider.getJustInTimeProvisioningConfig().getPasswordProvisioningEnabled();
+        isUserNameModificationAllowed = identityProvider.getJustInTimeProvisioningConfig().getModifyUserNameAllowed();
 
         if (identityProvider.getDefaultAuthenticatorConfig() != null
                 && identityProvider.getDefaultAuthenticatorConfig().getName() != null) {
@@ -853,6 +855,7 @@
     String provisionStaticDropdownDisabled = "";
     String provisionDynamicDropdownDisabled = "";
     String passowordProvisioningCheckBoxDisabled = "";
+    String modifyUserNameAllowedCheckBoxDisabled = "";
     if (!isProvisioningEnabled) {
         provisionStaticDropdownDisabled = "disabled=\'disabled\'";
         provisionDynamicDropdownDisabled = "disabled=\'disabled\'";
@@ -861,6 +864,10 @@
         provisionDynamicDropdownDisabled = "disabled=\'disabled\'";
     } else if (isProvisioningEnabled && provisioningUserStoreId == null) {
         provisionStaticDropdownDisabled = "disabled=\'disabled\'";
+    }
+
+    if (!isProvisioningEnabled || !isPasswordProvisioningEnabled) {
+        modifyUserNameAllowedCheckBoxDisabled = "disabled=\'disabled\'";
     }
 
     userStoreDomains = client.getUserStoreDomains();
@@ -4974,6 +4981,12 @@
                                            <%=passowordProvisioningCheckBoxDisabled%> <% if (isPasswordProvisioningEnabled) {
                                     %> checked="checked" <% } %>/>
                                     Enable Password Provisioning
+                                </div>
+                                <div style="padding-left: 80px; !important">
+                                    <input type="checkbox" id="modify_username" name="modify_username"
+                                            <%=modifyUserNameAllowedCheckBoxDisabled%> <% if (isUserNameModificationAllowed) {
+                                    %> checked="checked" <% } %>/>
+                                    Allow modify User name
                                 </div>
                             </td>
                         </tr>

@@ -42,7 +42,13 @@ public class FrameworkErrorConstants {
         ERROR_WHILE_TRYING_CALL_SIGN_UP_ENDPOINT_FOR_PASSWORD_PROVISIONING("80006", "Error while calling the sign-up "
                 + "endpoint for provisioning user %s from IDP, %s"),
         ERROR_WHILE_TRYING_TO_PROVISION_USER_WITHOUT_PASSWORD_PROVISIONING("80007", "Error while trying to provision "
-                + "user %s from IDP, %s");
+                + "user %s from IDP, %s"),
+        ERROR_WHILE_TRYING_TO_GET_CLAIMS_WHILE_TRYING_TO_PASSWORD_PROVISION("80008", "Error while trying to get the "
+                + "claims while trying to provision the user for IDP, %s"),
+        ERROR_WHILE_TRYING_TO_PROVISION_USER_WITH_PASSWORD_PROVISIONING("80009", "Error while trying to provision "
+                + "user %s from IDP, %s"),
+        ERROR_WHILE_GETTING_USERNAME_ASSOCIATED_WITH_IDP("80010", "Error while getting user name associated with from "
+                + "sIDP, %s");
 
         private final String code;
         private final String message;

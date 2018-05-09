@@ -51,10 +51,13 @@ public abstract class FrameworkConstants {
     public static final String OPENID_SERVER = "openidserver";
     public static final String OAUTH2 = "oauth2";
     public static final String USERNAME = "username";
+    public static final String PASSWORD = "password";
+    public static final String SIGN_UP_ENDPOINT = "/accountrecoveryendpoint/signup.do";
 
     // This is to support sign-up form to be displayed in the provisioning flow, as when trying to displaying the
     // sign-up form, we validate whether self-sign up is enabled.
     public static final String SKIP_SIGN_UP_ENABLE_CHECK = "skipsignupenablecheck";
+    public static final String ALLOW_CHANGE_USER_NAME = "allowchangeusername";
     public static final String OPENID_IDENTITY = "openid.identity";
     public static final String OIDC = "oidc";
     public static final String AUTH_ENDPOINT_QUERY_PARAMS_ACTION_INCLUDE = "include";

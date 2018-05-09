@@ -1752,6 +1752,12 @@ public class IdPManagementUIUtil {
 
         if (paramMap.get("password_provisioning") != null && "on".equals(paramMap.get("password_provisioning"))) {
             jitProvisioningConfiguration.setPasswordProvisioningEnabled(true);
+
+            if (paramMap.get("modify_username") != null && "on".equals(paramMap.get("modify_username"))) {
+                jitProvisioningConfiguration.setModifyUserNameAllowed(true);
+            } else {
+                jitProvisioningConfiguration.setModifyUserNameAllowed(false);
+            }
         } else {
             jitProvisioningConfiguration.setPasswordProvisioningEnabled(false);
         }

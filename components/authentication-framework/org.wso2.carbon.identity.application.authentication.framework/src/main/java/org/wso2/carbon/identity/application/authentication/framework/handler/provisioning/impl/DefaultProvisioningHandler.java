@@ -138,15 +138,16 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
                 }
 
                 if (!userClaims.isEmpty()) {
+                    userClaims.remove(FrameworkConstants.PASSWORD);
                     userStoreManager.setUserClaimValues(username, userClaims, null);
                 }
 
             } else {
                 String password = generatePassword();
-                if (userClaims.get("password") != null) {
-                    password = userClaims.get("password");
+                if (userClaims.get(FrameworkConstants.PASSWORD) != null) {
+                    password = userClaims.get(FrameworkConstants.PASSWORD);
                 }
-                userClaims.remove("password");
+                userClaims.remove(FrameworkConstants.PASSWORD);
                 userStoreManager.addUser(username, password, addingRoles.toArray(
                         new String[addingRoles.size()]), userClaims, null);
 
