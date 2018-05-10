@@ -1334,11 +1334,11 @@ public class FrameworkUtils {
      * If excludeUnmapped is true exclude unmapped roles.
      * Otherwise include unmapped roles as well.
      *
-     * @param externalIdPConfig
-     * @param extAttributesValueMap
-     * @param idpRoleClaimUri
-     * @param excludeUnmapped
-     * @return ArrayList<string>
+     * @param externalIdPConfig     Relevant external IDP Config.
+     * @param extAttributesValueMap Attributes map.
+     * @param idpRoleClaimUri       IDP role claim URI.
+     * @param excludeUnmapped       to indicate whether to exclude unmapped.
+     * @return ArrayList<string> list of roles.
      */
     public static List<String> getIdentityProvideMappedUserRoles(ExternalIdPConfig externalIdPConfig,
             Map<String, String> extAttributesValueMap, String idpRoleClaimUri, Boolean excludeUnmapped) {
@@ -1399,8 +1399,10 @@ public class FrameworkUtils {
     }
 
     /**
-     * @param externalIdPConfig
-     * @return
+     * To get the role claim uri of an IDP.
+     *
+     * @param externalIdPConfig Relevant external IDP Config.
+     * @return idp role claim URI.
      */
     public static String getIdpRoleClaimUri(ExternalIdPConfig externalIdPConfig) {
         // get external identity provider role claim uri.
@@ -1415,14 +1417,13 @@ public class FrameworkUtils {
             if (idpToLocalClaimMapping != null && idpToLocalClaimMapping.length > 0) {
 
                 for (ClaimMapping mapping : idpToLocalClaimMapping) {
-                    if (FrameworkConstants.LOCAL_ROLE_CLAIM_URI.equals(
-                            mapping.getLocalClaim().getClaimUri()) && mapping.getRemoteClaim() != null) {
+                    if (FrameworkConstants.LOCAL_ROLE_CLAIM_URI.equals(mapping.getLocalClaim().getClaimUri())
+                            && mapping.getRemoteClaim() != null) {
                         return mapping.getRemoteClaim().getClaimUri();
                     }
                 }
             }
         }
-
         return idpRoleClaimUri;
     }
 

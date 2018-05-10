@@ -53,6 +53,7 @@ public abstract class FrameworkConstants {
     public static final String USERNAME = "username";
     public static final String PASSWORD = "password";
     public static final String SIGN_UP_ENDPOINT = "/accountrecoveryendpoint/signup.do";
+    public static final String REGISTRATION_ENDPOINT = "/accountrecoveryendpoint/register.do";
 
     // This is to support sign-up form to be displayed in the provisioning flow, as when trying to displaying the
     // sign-up form, we validate whether self-sign up is enabled.
@@ -79,6 +80,7 @@ public abstract class FrameworkConstants {
     // This property is to keep track whether the post authentication handler for jit provisioning is executing
     // request flow or response flow.
     public static final String PASSWORD_PROVISION_REDIRECTION_TRIGGERED = "passwordProvisioningRedirectionTriggered";
+    public static final String CHANGING_USERNAME_ALLOWED = "changingUserNameAllowed";
     public static final String MISSING_CLAIMS = "missingClaims";
     public static final String REQUEST_PARAM_SP = "sp";
     public static final String MAPPED_ATTRIBUTES = "MappedAttributes";

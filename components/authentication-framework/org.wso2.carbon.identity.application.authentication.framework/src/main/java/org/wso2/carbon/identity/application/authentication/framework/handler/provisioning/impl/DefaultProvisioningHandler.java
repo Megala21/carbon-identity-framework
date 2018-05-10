@@ -142,6 +142,12 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
                     userStoreManager.setUserClaimValues(username, userClaims, null);
                 }
 
+                UserProfileAdmin userProfileAdmin = UserProfileAdmin.getInstance();
+
+                if (StringUtils.isEmpty(userProfileAdmin.getNameAssociatedWith(idp, subjectVal))) {
+                    // Associate User
+                    associateUser(username, userStoreDomain, tenantDomain, subjectVal, idp);
+                }
             } else {
                 String password = generatePassword();
                 if (userClaims.get(FrameworkConstants.PASSWORD) != null) {
@@ -163,7 +169,7 @@ public class DefaultProvisioningHandler implements ProvisioningHandler {
 
             PermissionUpdateUtil.updatePermissionTree(tenantId);
 
-        } catch (org.wso2.carbon.user.api.UserStoreException | CarbonException e) {
+        } catch (org.wso2.carbon.user.api.UserStoreException | CarbonException | UserProfileException e) {
             throw new FrameworkException("Error while provisioning user : " + subject, e);
         } finally {
             IdentityUtil.clearIdentityErrorMsg();

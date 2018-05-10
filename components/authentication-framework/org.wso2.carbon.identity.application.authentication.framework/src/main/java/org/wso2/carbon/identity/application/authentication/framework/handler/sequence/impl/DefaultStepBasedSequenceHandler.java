@@ -625,6 +625,7 @@ public class DefaultStepBasedSequenceHandler implements StepBasedSequenceHandler
         return Collections.emptyMap();
     }
 
+    @Override
     public void callJitProvisioning(String subjectIdentifier, AuthenticationContext context,
             List<String> mappedRoles, Map<String, String> extAttributesValueMap) throws FrameworkException {
         handleJitProvisioning(subjectIdentifier, context, mappedRoles, extAttributesValueMap);

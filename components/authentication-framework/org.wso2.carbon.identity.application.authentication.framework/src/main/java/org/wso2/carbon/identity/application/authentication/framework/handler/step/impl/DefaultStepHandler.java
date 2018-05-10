@@ -47,8 +47,12 @@ import org.wso2.carbon.identity.application.common.util.IdentityApplicationConst
 import org.wso2.carbon.identity.core.model.IdentityErrorMsgContext;
 import org.wso2.carbon.identity.core.util.IdentityCoreConstants;
 import org.wso2.carbon.identity.core.util.IdentityUtil;
+import org.wso2.carbon.identity.user.profile.mgt.UserProfileAdmin;
+import org.wso2.carbon.identity.user.profile.mgt.UserProfileException;
 import org.wso2.carbon.idp.mgt.IdentityProviderManagementException;
 import org.wso2.carbon.user.core.UserCoreConstants;
+import org.wso2.carbon.user.core.util.UserCoreUtil;
+import org.wso2.carbon.user.mgt.UserAdmin;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -504,9 +508,15 @@ public class DefaultStepHandler implements StepHandler {
 
             if (authenticator instanceof FederatedApplicationAuthenticator) {
                 if (context.getSubject().getUserName() == null) {
-                    // Set subject identifier as the default username for federated users
-                    String authenticatedSubjectIdentifier = context.getSubject().getAuthenticatedSubjectIdentifier();
-                    context.getSubject().setUserName(authenticatedSubjectIdentifier);
+                    String idpId = context.getExternalIdP().getIdPName();
+                    String associateId = context.getSubject().getAuthenticatedSubjectIdentifier();
+                    String userName = UserProfileAdmin.getInstance().getNameAssociatedWith(idpId, associateId);
+
+                    if (StringUtils.isEmpty(userName)) {
+                        // Set subject identifier as the default username for federated users
+                        userName = associateId;
+                    }
+                    context.getSubject().setUserName(userName);
                 }
 
                 if (context.getSubject().getFederatedIdPName() == null && context.getExternalIdP() != null) {
@@ -555,6 +565,8 @@ public class DefaultStepHandler implements StepHandler {
             handleFailedAuthentication(request, response, context, authenticatorConfig, e.getUser());
         } catch (LogoutFailedException e) {
             throw new FrameworkException(e.getMessage(), e);
+        } catch (UserProfileException e) {
+            throw new FrameworkException("Error while getting username associated with the federated id", e);
         }
 
         stepConfig.setCompleted(true);
