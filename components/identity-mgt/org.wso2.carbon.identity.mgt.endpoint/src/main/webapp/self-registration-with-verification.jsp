@@ -32,6 +32,11 @@
 <%@ page import="org.wso2.carbon.identity.mgt.endpoint.IdentityManagementServiceUtil" %>
 <%@ page import="org.wso2.carbon.identity.mgt.constants.SelfRegistrationStatusCodes" %>
 <%@ page import="org.wso2.carbon.identity.mgt.endpoint.client.SelfRegistrationMgtClientException" %>
+<%@page import="org.wso2.carbon.identity.application.authentication.endpoint.util.Constants" %>
+<%@ page import="java.util.Arrays" %>
+<%@ page import="java.util.ArrayList" %>
+<%@ page import="org.apache.commons.lang.ArrayUtils" %>
+<%@ page import="org.apache.commons.collections.CollectionUtils" %>
 
 <%
     boolean error = IdentityManagementEndpointUtil.getBooleanValue(request.getAttribute("error"));
@@ -46,6 +51,14 @@
     Integer defaultPurposeCatId = null;
     Integer userNameValidityStatusCode = null;
     String username = request.getParameter("username");
+    String[] missingClaimList = new String[0];
+    String[] missingClaimDisplayName = new String[0];
+    if (request.getParameter(Constants.MISSING_CLAIMS) != null) {
+        missingClaimList = request.getParameter(Constants.MISSING_CLAIMS).split(",");
+    }
+    if (request.getParameter("missingClaimsDisplayName") != null) {
+        missingClaimDisplayName = request.getParameter("missingClaimsDisplayName").split(",");
+    }
     boolean skipSignUpEnableCheck = Boolean.parseBoolean(request.getParameter("skipsignupenablecheck"));
     String callback = Encode.forHtmlAttribute(request.getParameter("callback"));
     User user = IdentityManagementServiceUtil.getInstance().getUser(username);
@@ -262,17 +275,39 @@
                             <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group required">
                                 <input type="hidden" name="callback" value="<%=callback %>"/>
                             </div>
+                            <% for (int index = 0; index < missingClaimList.length; index++) {
+                                String claim = missingClaimList[index];
+                                String claimDisplayName = missingClaimDisplayName[index];
+                                if (!StringUtils
+                                        .equals(claim, IdentityManagementEndpointConstants.ClaimURIs.FIRST_NAME_CLAIM)
+                                        && !StringUtils
+                                        .equals(claim, IdentityManagementEndpointConstants.ClaimURIs.LAST_NAME_CLAIM)
+                                        && !StringUtils
+                                        .equals(claim, IdentityManagementEndpointConstants.ClaimURIs.EMAIL_CLAIM)) {
+                            %>
+                            <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group required">
+                                <label class="control-label"><%=Encode.forHtmlContent(claimDisplayName)%>
+                                </label>
+                                <input type="text" name="<%=Encode.forHtmlAttribute(claim)%>"
+                                       id="<%=Encode.forHtmlAttribute(claim)%>" class="form-control" required="required">
+                            </div>
+                            <% }}%>
                             <%
                                 }
-
+                                List<String> missingClaims = null;
+                                if (ArrayUtils.isNotEmpty(missingClaimList)) {
+                                    missingClaims = Arrays.asList(missingClaimList);
+                                }
                                 for (Claim claim : claims) {
-                                if (!StringUtils.equals(claim.getUri(),
-                                        IdentityManagementEndpointConstants.ClaimURIs.FIRST_NAME_CLAIM) &&
+
+                                if ((CollectionUtils.isEmpty(missingClaims) || !missingClaims.contains(claim.getUri())) &&
+                                            !StringUtils.equals(claim.getUri(), IdentityManagementEndpointConstants.ClaimURIs.FIRST_NAME_CLAIM) &&
                                     !StringUtils.equals(claim.getUri(), IdentityManagementEndpointConstants.ClaimURIs.LAST_NAME_CLAIM) &&
                                     !StringUtils.equals(claim.getUri(), IdentityManagementEndpointConstants.ClaimURIs.EMAIL_CLAIM) &&
                                     !StringUtils.equals(claim.getUri(), IdentityManagementEndpointConstants.ClaimURIs.CHALLENGE_QUESTION_URI_CLAIM) &&
                                     !StringUtils.equals(claim.getUri(), IdentityManagementEndpointConstants.ClaimURIs.CHALLENGE_QUESTION_1_CLAIM) &&
-                                    !StringUtils.equals(claim.getUri(), IdentityManagementEndpointConstants.ClaimURIs.CHALLENGE_QUESTION_2_CLAIM)) {
+                                    !StringUtils.equals(claim.getUri(),
+                                            IdentityManagementEndpointConstants.ClaimURIs.CHALLENGE_QUESTION_2_CLAIM)) {
                                     String claimURI = claim.getUri();
                                     String claimValue = request.getParameter(claimURI);
                             %>

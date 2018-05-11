@@ -48,7 +48,8 @@ public class FrameworkErrorConstants {
         ERROR_WHILE_TRYING_TO_PROVISION_USER_WITH_PASSWORD_PROVISIONING("80009", "Error while trying to provision "
                 + "user %s from IDP, %s"),
         ERROR_WHILE_GETTING_USERNAME_ASSOCIATED_WITH_IDP("80010", "Error while getting user name associated with from "
-                + "sIDP, %s");
+                + "sIDP, %s"),
+        ERROR_WHILE_UPDATING_CLAIM_MAPPINGS("80011", "Error while updating claim mapping for the user , %s");
 
         private final String code;
         private final String message;

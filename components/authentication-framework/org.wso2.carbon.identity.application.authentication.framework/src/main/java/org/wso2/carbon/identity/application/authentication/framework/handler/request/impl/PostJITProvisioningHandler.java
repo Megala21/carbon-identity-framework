@@ -22,8 +22,6 @@ import org.apache.commons.lang.StringUtils;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.http.client.utils.URIBuilder;
-import org.wso2.carbon.CarbonException;
-import org.wso2.carbon.core.util.AnonymousSessionUtil;
 import org.wso2.carbon.identity.application.authentication.framework.ApplicationAuthenticator;
 import org.wso2.carbon.identity.application.authentication.framework.FederatedApplicationAuthenticator;
 import org.wso2.carbon.identity.application.authentication.framework.config.ConfigurationFacade;
@@ -42,13 +40,12 @@ import org.wso2.carbon.identity.application.authentication.framework.util.Framew
 import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkErrorConstants.ErrorMessages;
 import org.wso2.carbon.identity.application.authentication.framework.util.FrameworkUtils;
 import org.wso2.carbon.identity.application.common.model.ClaimMapping;
-import org.wso2.carbon.identity.base.IdentityException;
-import org.wso2.carbon.identity.core.IdentityClaimManager;
+import org.wso2.carbon.identity.core.util.IdentityTenantUtil;
 import org.wso2.carbon.identity.user.profile.mgt.UserProfileAdmin;
 import org.wso2.carbon.identity.user.profile.mgt.UserProfileException;
 import org.wso2.carbon.idp.mgt.IdentityProviderManagementException;
-import org.wso2.carbon.registry.core.service.RegistryService;
 import org.wso2.carbon.user.api.Claim;
+import org.wso2.carbon.user.api.UserStoreException;
 import org.wso2.carbon.user.core.UserRealm;
 import org.wso2.carbon.user.core.service.RealmService;
 
@@ -56,9 +53,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.wso2.carbon.identity.application.authentication.framework.handler.request.PostAuthnHandlerFlowStatus.UNSUCCESS_COMPLETED;
 import static org.wso2.carbon.identity.application.authentication.framework.handler.request.impl.consent.constant.SSOConsentConstants.USERNAME_CLAIM;
@@ -157,28 +152,33 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler {
                             new HashMap<>() :
                             (Map<String, String>) unfilteredLocalClaimValues;
 
-                    Claim[] claims = getClaimsForTenant(context.getTenantDomain(), externalIdPConfigName);
+                    org.wso2.carbon.user.api.ClaimMapping[] claims = getClaimsForTenant(context.getTenantDomain(),
+                            externalIdPConfigName);
 
                     if (claims != null) {
-                        for (Claim claim : claims) {
-                            String uri = claim.getClaimUri();
+                        for (org.wso2.carbon.user.api.ClaimMapping claimMapping : claims) {
+                            String uri = claimMapping.getClaim().getClaimUri();
                             String claimValue = request.getParameter(uri);
+
                             if (StringUtils.isNotBlank(claimValue) && StringUtils.isEmpty(localClaimValues.get(uri))) {
                                 localClaimValues.put(uri, claimValue);
                             }
                         }
                     }
+                    context.setProperty(FrameworkConstants.UNFILTERED_LOCAL_CLAIM_VALUES,
+                            new HashMap<>(localClaimValues));
+
                     localClaimValues
                             .put(FrameworkConstants.PASSWORD, request.getParameter(FrameworkConstants.PASSWORD));
                     String username = sequenceConfig.getAuthenticatedUser().getUserName();
 
-                    if (context.getProperty(CHANGING_USERNAME_ALLOWED).equals(true)) {
+                    if (context.getProperty(CHANGING_USERNAME_ALLOWED) != null) {
                         username = request.getParameter(FrameworkConstants.USERNAME);
                     }
 
                     callDefaultProvisioniningHandler(username, context, externalIdPConfig, localClaimValues,
                             stepConfig);
-                    setUserName(context, stepConfig, sequenceConfig, request);
+                    setUserName(context, stepConfig, request);
                 }
 
             }
@@ -244,7 +244,7 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler {
                         username = stepConfig.getAuthenticatedUser().getUserName();
                     }
                     callDefaultProvisioniningHandler(username, context, externalIdPConfig, localClaimValues, stepConfig);
-                    setUserName(context, stepConfig, sequenceConfig, request);
+                    setUserName(context, stepConfig, request);
                 }
 
             }
@@ -273,16 +273,19 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler {
      * @param stepConfig Step Configuration.
      * @throws PostAuthenticationFailedException Post Authentication failed exception.
      */
-    private void setUserName(AuthenticationContext context, StepConfig stepConfig, SequenceConfig sequenceConfig,
-            HttpServletRequest request) throws PostAuthenticationFailedException {
+    private void setUserName(AuthenticationContext context, StepConfig stepConfig, HttpServletRequest request)
+            throws PostAuthenticationFailedException {
 
         try {
             UserProfileAdmin userProfileAdmin = UserProfileAdmin.getInstance();
             String username = userProfileAdmin.getNameAssociatedWith(stepConfig.getAuthenticatedIdP(),
                     stepConfig.getAuthenticatedUser().getAuthenticatedSubjectIdentifier());
-            AuthenticatedUser authenticatedUser = sequenceConfig.getAuthenticatedUser();
+            AuthenticatedUser authenticatedUser = context.getSequenceConfig().getAuthenticatedUser();
             authenticatedUser.setUserName(username);
-            sequenceConfig.setAuthenticatedUser(authenticatedUser);
+            Map<ClaimMapping, String> claimMapping = FrameworkUtils
+                    .buildClaimMappings((Map<String, String>) context.getProperty(UNFILTERED_LOCAL_CLAIM_VALUES));
+            authenticatedUser.setUserAttributes(claimMapping);
+            context.getSequenceConfig().setAuthenticatedUser(authenticatedUser);
             AuthenticatedUser stepAuthenticatedUser = stepConfig.getAuthenticatedUser();
             stepAuthenticatedUser.setUserName(username);
             stepConfig.setAuthenticatedUser(stepAuthenticatedUser);
@@ -331,6 +334,12 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler {
             uriBuilder.addParameter(FrameworkConstants.USERNAME, username);
             uriBuilder.addParameter(FrameworkConstants.SKIP_SIGN_UP_ENABLE_CHECK, String.valueOf(true));
             uriBuilder.addParameter(FrameworkConstants.SESSION_DATA_KEY, context.getContextIdentifier());
+            String[] missingClaims = PostAuthnMissingClaimHandler.getInstance().getMissingClaims(context);
+
+            if (StringUtils.isNotEmpty(missingClaims[1])) {
+                uriBuilder.addParameter(FrameworkConstants.MISSING_CLAIMS, missingClaims[1]);
+                uriBuilder.addParameter(FrameworkConstants.MISSING_CLAIMS_DISPLAY_NAME, missingClaims[0]);
+            }
             localClaimValues.forEach(uriBuilder::addParameter);
             response.sendRedirect(uriBuilder.build().toString());
         } catch (URISyntaxException | IOException e) {
@@ -370,31 +379,32 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler {
      * @return list of cliams available in the tenant.
      * @throws PostAuthenticationFailedException PostAuthentication Failed Exception.
      */
-    private Claim[] getClaimsForTenant(String tenantDomain, String externalIdPConfigName)
+    private org.wso2.carbon.user.api.ClaimMapping[] getClaimsForTenant(String tenantDomain, String externalIdPConfigName)
             throws PostAuthenticationFailedException {
 
-        RegistryService registryService = FrameworkServiceComponent.getRegistryService();
         RealmService realmService = FrameworkServiceComponent.getRealmService();
         UserRealm realm = null;
         try {
-            realm = AnonymousSessionUtil.getRealmByTenantDomain(registryService, realmService, tenantDomain);
-        } catch (CarbonException e) {
+            int usersTenantId = IdentityTenantUtil.getTenantId(tenantDomain);
+            realm = (UserRealm) realmService.getTenantUserRealm(usersTenantId);
+        } catch (UserStoreException e) {
             handleExceptions(String.format(ERROR_WHILE_GETTING_REALM_IN_POST_AUTHENTICATION.getMessage(), tenantDomain),
                     ERROR_WHILE_GETTING_REALM_IN_POST_AUTHENTICATION.getCode(), e);
         }
 
-        Claim[] claims = null;
+        org.wso2.carbon.user.api.ClaimMapping[] claimMappings = null;
 
         // Getting only the supported claims.
         try {
-            claims = IdentityClaimManager.getInstance().getAllSupportedClaims(realm);
-        } catch (IdentityException e) {
+            claimMappings = realm.getClaimManager().getAllClaimMappings();
+
+        } catch (UserStoreException e) {
             handleExceptions(
                     String.format(ERROR_WHILE_TRYING_TO_GET_CLAIMS_WHILE_TRYING_TO_PASSWORD_PROVISION.getMessage(),
                             externalIdPConfigName),
                     ERROR_WHILE_TRYING_TO_GET_CLAIMS_WHILE_TRYING_TO_PASSWORD_PROVISION.getCode(), e);
         }
-        return claims;
+        return claimMappings;
     }
 
     /**
