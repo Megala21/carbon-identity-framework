@@ -58,6 +58,7 @@ public abstract class FrameworkConstants {
     // This is to support sign-up form to be displayed in the provisioning flow, as when trying to displaying the
     // sign-up form, we validate whether self-sign up is enabled.
     public static final String SKIP_SIGN_UP_ENABLE_CHECK = "skipsignupenablecheck";
+    public static final String PASSWORD_PROVISION_ENABLED = "passwordProvisionEnabled";
     public static final String ALLOW_CHANGE_USER_NAME = "allowchangeusername";
     public static final String OPENID_IDENTITY = "openid.identity";
     public static final String OIDC = "oidc";

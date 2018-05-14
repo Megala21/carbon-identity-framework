@@ -508,15 +508,9 @@ public class DefaultStepHandler implements StepHandler {
 
             if (authenticator instanceof FederatedApplicationAuthenticator) {
                 if (context.getSubject().getUserName() == null) {
-                    String idpId = context.getExternalIdP().getIdPName();
-                    String associateId = context.getSubject().getAuthenticatedSubjectIdentifier();
-                    String userName = UserProfileAdmin.getInstance().getNameAssociatedWith(idpId, associateId);
-
-                    if (StringUtils.isEmpty(userName)) {
-                        // Set subject identifier as the default username for federated users
-                        userName = associateId;
-                    }
-                    context.getSubject().setUserName(userName);
+                    // Set subject identifier as the default username for federated users
+                    String authenticatedSubjectIdentifier = context.getSubject().getAuthenticatedSubjectIdentifier();
+                    context.getSubject().setUserName(authenticatedSubjectIdentifier);
                 }
 
                 if (context.getSubject().getFederatedIdPName() == null && context.getExternalIdP() != null) {
@@ -565,8 +559,6 @@ public class DefaultStepHandler implements StepHandler {
             handleFailedAuthentication(request, response, context, authenticatorConfig, e.getUser());
         } catch (LogoutFailedException e) {
             throw new FrameworkException(e.getMessage(), e);
-        } catch (UserProfileException e) {
-            throw new FrameworkException("Error while getting username associated with the federated id", e);
         }
 
         stepConfig.setCompleted(true);

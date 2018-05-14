@@ -44,16 +44,19 @@ import org.wso2.carbon.identity.core.util.IdentityTenantUtil;
 import org.wso2.carbon.identity.user.profile.mgt.UserProfileAdmin;
 import org.wso2.carbon.identity.user.profile.mgt.UserProfileException;
 import org.wso2.carbon.idp.mgt.IdentityProviderManagementException;
-import org.wso2.carbon.user.api.Claim;
 import org.wso2.carbon.user.api.UserStoreException;
 import org.wso2.carbon.user.core.UserRealm;
 import org.wso2.carbon.user.core.service.RealmService;
+import org.wso2.carbon.user.core.util.UserCoreUtil;
+import org.wso2.carbon.utils.multitenancy.MultitenantUtils;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.wso2.carbon.identity.application.authentication.framework.handler.request.PostAuthnHandlerFlowStatus.UNSUCCESS_COMPLETED;
 import static org.wso2.carbon.identity.application.authentication.framework.handler.request.impl.consent.constant.SSOConsentConstants.USERNAME_CLAIM;
@@ -165,8 +168,6 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler {
                             }
                         }
                     }
-                    context.setProperty(FrameworkConstants.UNFILTERED_LOCAL_CLAIM_VALUES,
-                            new HashMap<>(localClaimValues));
 
                     localClaimValues
                             .put(FrameworkConstants.PASSWORD, request.getParameter(FrameworkConstants.PASSWORD));
@@ -178,7 +179,6 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler {
 
                     callDefaultProvisioniningHandler(username, context, externalIdPConfig, localClaimValues,
                             stepConfig);
-                    setUserName(context, stepConfig, request);
                 }
 
             }
@@ -233,7 +233,7 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler {
                                 ErrorMessages.ERROR_WHILE_GETTING_USERNAME_ASSOCIATED_WITH_IDP.getCode(), e);
                     }
 
-                    if (externalIdPConfig.isPasswordProvisioningEnabled() && username == null) {
+                    if (username == null) {
                         redirectToPasswordProvisioningUI(externalIdPConfig, context, localClaimValues, response,
                                 sequenceConfig.getAuthenticatedUser().getUserName());
                         context.setProperty(PASSWORD_PROVISION_REDIRECTION_TRIGGERED, true);
@@ -243,8 +243,8 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler {
                     if (StringUtils.isEmpty(username)) {
                         username = stepConfig.getAuthenticatedUser().getUserName();
                     }
+
                     callDefaultProvisioniningHandler(username, context, externalIdPConfig, localClaimValues, stepConfig);
-                    setUserName(context, stepConfig, request);
                 }
 
             }
@@ -264,41 +264,6 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler {
             throws PostAuthenticationFailedException {
         log.error(errorCode + " - " + errorMessage, e);
         throw new PostAuthenticationFailedException(errorCode, errorMessage, e);
-    }
-
-    /**
-     * To set the user name in the authenticated context.
-     *
-     * @param context    Authentication Context.
-     * @param stepConfig Step Configuration.
-     * @throws PostAuthenticationFailedException Post Authentication failed exception.
-     */
-    private void setUserName(AuthenticationContext context, StepConfig stepConfig, HttpServletRequest request)
-            throws PostAuthenticationFailedException {
-
-        try {
-            UserProfileAdmin userProfileAdmin = UserProfileAdmin.getInstance();
-            String username = userProfileAdmin.getNameAssociatedWith(stepConfig.getAuthenticatedIdP(),
-                    stepConfig.getAuthenticatedUser().getAuthenticatedSubjectIdentifier());
-            AuthenticatedUser authenticatedUser = context.getSequenceConfig().getAuthenticatedUser();
-            authenticatedUser.setUserName(username);
-            Map<ClaimMapping, String> claimMapping = FrameworkUtils
-                    .buildClaimMappings((Map<String, String>) context.getProperty(UNFILTERED_LOCAL_CLAIM_VALUES));
-            authenticatedUser.setUserAttributes(claimMapping);
-            context.getSequenceConfig().setAuthenticatedUser(authenticatedUser);
-            AuthenticatedUser stepAuthenticatedUser = stepConfig.getAuthenticatedUser();
-            stepAuthenticatedUser.setUserName(username);
-            stepConfig.setAuthenticatedUser(stepAuthenticatedUser);
-
-            if (log.isDebugEnabled()) {
-                log.debug("Authenticated User name is set to " + username + " after JIT provisioning for the IDP "
-                        + stepConfig.getAuthenticatedIdP());
-            }
-        } catch (UserProfileException e) {
-            handleExceptions(String.format(ErrorMessages.ERROR_WHILE_GETTING_USERNAME_ASSOCIATED_WITH_IDP.getMessage(),
-                    stepConfig.getAuthenticatedIdP()),
-                    ErrorMessages.ERROR_WHILE_GETTING_USERNAME_ASSOCIATED_WITH_IDP.getCode(), e);
-        }
     }
 
     /**
@@ -330,6 +295,10 @@ public class PostJITProvisioningHandler extends AbstractPostAuthnHandler {
                     log.debug(externalIdPConfig.getName() + " supports password provisioning, redirecting to "
                             + "sign up endpoint to provision the user " + username);
                 }
+            }
+
+            if (externalIdPConfig.isPasswordProvisioningEnabled()) {
+                uriBuilder.addParameter(FrameworkConstants.PASSWORD_PROVISION_ENABLED, String.valueOf(true));
             }
             uriBuilder.addParameter(FrameworkConstants.USERNAME, username);
             uriBuilder.addParameter(FrameworkConstants.SKIP_SIGN_UP_ENABLE_CHECK, String.valueOf(true));

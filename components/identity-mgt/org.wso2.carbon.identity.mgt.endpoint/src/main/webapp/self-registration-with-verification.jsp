@@ -37,6 +37,7 @@
 <%@ page import="java.util.ArrayList" %>
 <%@ page import="org.apache.commons.lang.ArrayUtils" %>
 <%@ page import="org.apache.commons.collections.CollectionUtils" %>
+<%@ page import="java.util.Map" %>
 
 <%
     boolean error = IdentityManagementEndpointUtil.getBooleanValue(request.getAttribute("error"));
@@ -60,6 +61,7 @@
         missingClaimDisplayName = request.getParameter("missingClaimsDisplayName").split(",");
     }
     boolean skipSignUpEnableCheck = Boolean.parseBoolean(request.getParameter("skipsignupenablecheck"));
+    boolean isPasswordProvisionEnabled = Boolean.parseBoolean(request.getParameter("passwordProvisionEnabled"));
     String callback = Encode.forHtmlAttribute(request.getParameter("callback"));
     User user = IdentityManagementServiceUtil.getInstance().getUser(username);
     
@@ -185,6 +187,8 @@
                         An Account</h2>
 
                     <div class="clearfix"></div>
+
+
                     <div class="boarder-all ">
 
                         <% if (error) { %>
@@ -196,6 +200,7 @@
                         <div class="alert alert-danger" id="error-msg" hidden="hidden">
                         </div>
 
+                        <% if (isPasswordProvisionEnabled || !skipSignUpEnableCheck) {%>
                         <div class="padding-double font-large">Enter required fields to complete registration of
                             <b><%=Encode.forHtmlAttribute(username)%></b></div>
                         <!-- validation -->
@@ -206,7 +211,6 @@
                             <% if (isFirstNameInClaims) {
                                 String firstNameClaimURI = "http://wso2.org/claims/givenname";
                                 String firstNameValue = request.getParameter(firstNameClaimURI);
-
                             %>
                             <div class="col-xs-12 col-sm-12 col-md-6 col-lg-6 form-group required">
                                 <label class="control-label">First Name</label>
@@ -231,12 +235,6 @@
                                     value="<%= Encode.forHtmlAttribute(lastNameValue)%>" disabled <% } %>>
                             </div>
                             <%}%>
-                            <% if (skipSignUpEnableCheck) { %>
-                            <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group">
-                                <input type="hidden" name="sessionDataKey" value='<%=Encode.forHtmlAttribute
-                                (request.getParameter("sessionDataKey"))%>'/>
-                            </div>
-                            <% } %>
                             <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group required">
                                 <input id="username" name="username" type="hidden" value="<%=Encode.forHtmlAttribute(username)%>"
                                        class="form-control required usrName usrNameLength">
@@ -332,6 +330,37 @@
                             %>
                             <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group"></div>
                         </div>
+                        <% } else { %>
+                        <div class="padding-double">
+                            <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group">
+                                <label class="control-label">User Name
+                                </label>
+                                <input type="text" class="form-control"
+                                       value="<%=Encode.forHtmlAttribute(username)%>" disabled>
+                            </div>
+                            <%
+                                for (Claim claim : claims) {
+                                    String claimUri = claim.getUri();
+                                    String claimValue = request.getParameter(claimUri);
+
+                                    if (StringUtils.isNotEmpty(claimValue)) { %>
+
+                            <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group">
+                                <label class="control-label"><%=claim.getDisplayName()%>
+                                </label>
+                                <input type="text" class="form-control"
+                                       value="<%= Encode.forHtmlAttribute(claimValue)%>" disabled>
+                            </div>
+
+                            <% } }%>
+                        </div>
+                        <% } %>
+                        <% if (skipSignUpEnableCheck) { %>
+                        <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 form-group">
+                            <input type="hidden" name="sessionDataKey" value='<%=Encode.forHtmlAttribute
+                                (request.getParameter("sessionDataKey"))%>'/>
+                        </div>
+                        <% } %>
                         <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12 padding-double border-top">
                             <%
                                 if (hasPurposes) {

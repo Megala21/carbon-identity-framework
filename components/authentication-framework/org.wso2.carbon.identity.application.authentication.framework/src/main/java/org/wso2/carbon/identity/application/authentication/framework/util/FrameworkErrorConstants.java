@@ -49,7 +49,9 @@ public class FrameworkErrorConstants {
                 + "user %s from IDP, %s"),
         ERROR_WHILE_GETTING_USERNAME_ASSOCIATED_WITH_IDP("80010", "Error while getting user name associated with from "
                 + "sIDP, %s"),
-        ERROR_WHILE_UPDATING_CLAIM_MAPPINGS("80011", "Error while updating claim mapping for the user , %s");
+        ERROR_WHILE_UPDATING_CLAIM_MAPPINGS("80011", "Error while updating claim mapping for the user , %s"),
+        ERROR_WHILE_GETTING_LOCAL_USER_ID("80012", "Error while getting associated local user ID for , %s"),
+        ERROR_WHILE_GETTING_CLAIM_MAPPINGS("80013", "Error while getting claim mappings for user, %s");
 
         private final String code;
         private final String message;

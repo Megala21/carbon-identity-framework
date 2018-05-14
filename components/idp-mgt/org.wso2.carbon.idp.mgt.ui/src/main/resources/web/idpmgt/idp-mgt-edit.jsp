@@ -854,20 +854,14 @@
     }
     String provisionStaticDropdownDisabled = "";
     String provisionDynamicDropdownDisabled = "";
-    String passowordProvisioningCheckBoxDisabled = "";
-    String modifyUserNameAllowedCheckBoxDisabled = "";
+
     if (!isProvisioningEnabled) {
         provisionStaticDropdownDisabled = "disabled=\'disabled\'";
         provisionDynamicDropdownDisabled = "disabled=\'disabled\'";
-        passowordProvisioningCheckBoxDisabled = "disabled=\'disabled\'";
     } else if (isProvisioningEnabled && provisioningUserStoreId != null) {
         provisionDynamicDropdownDisabled = "disabled=\'disabled\'";
     } else if (isProvisioningEnabled && provisioningUserStoreId == null) {
         provisionStaticDropdownDisabled = "disabled=\'disabled\'";
-    }
-
-    if (!isProvisioningEnabled || !isPasswordProvisioningEnabled) {
-        modifyUserNameAllowedCheckBoxDisabled = "disabled=\'disabled\'";
     }
 
     userStoreDomains = client.getUserStoreDomains();
@@ -4977,16 +4971,34 @@
                                     <fmt:message key='provisioning.enabled.help'/>
                                 </div>
                                 <div style="padding-left: 40px; !important">
-                                    <input type="checkbox" id="password_provisioning" name="password_provisioning"
-                                           <%=passowordProvisioningCheckBoxDisabled%> <% if (isPasswordProvisioningEnabled) {
-                                    %> checked="checked" <% } %>/>
-                                    Enable Password Provisioning
+                                    <label style="display:block">
+                                        <input type="radio" id="modify_username_password" name="choose_jit_type_group"
+                                               value="modify_username_password" <% if (isPasswordProvisioningEnabled
+                                                && isUserNameModificationAllowed) { %>
+                                               checked="checked" <% } if(!isProvisioningEnabled) { %> disabled
+                                                <%}%>/>
+                                        Ask username and password
+                                    </label>
                                 </div>
-                                <div style="padding-left: 80px; !important">
-                                    <input type="checkbox" id="modify_username" name="modify_username"
-                                            <%=modifyUserNameAllowedCheckBoxDisabled%> <% if (isUserNameModificationAllowed) {
-                                    %> checked="checked" <% } %>/>
-                                    Allow modify User name
+                                <div style="padding-left: 40px; !important">
+                                    <label style="display:block">
+                                        <input type="radio" id=modify_password" name="choose_jit_type_group"
+                                               value="modify_password"  <% if (isPasswordProvisioningEnabled &&
+                                                !isUserNameModificationAllowed) { %>
+                                               checked="checked" <% } if(!isProvisioningEnabled) { %> disabled
+                                                <%}%>/>
+                                        Ask password
+                                    </label>
+                                </div>
+                                <div style="padding-left: 40px; !important">
+                                    <label style="display:block">
+                                        <input type="radio" id="do_not_modify" name="choose_jit_type_group"
+                                               value="don_not_modify"  <% if (!isPasswordProvisioningEnabled &&
+                                                !isUserNameModificationAllowed) { %>
+                                               checked="checked" <% } if(!isProvisioningEnabled) { %> disabled
+                                                <%}%>/>
+                                        Do not ask username or password
+                                    </label>
                                 </div>
                             </td>
                         </tr>
